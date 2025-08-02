@@ -46,16 +46,15 @@ jobs:
             #!/bin/bash
             cd /home/ubuntu/mission-ai
             
-            # 가상환경 설정
             python3 -m venv venv 2>/dev/null || true
             source venv/bin/activate
             pip install -r requirements.txt
             
             # 기존 Mission AI 프로세스 종료
-            pkill -f "python.*mission.py" || true
+            pkill -f "uvicorn.*mission:app" || true
             sleep 3
             
-            # Mission AI 시작 (FastAPI 서버 실행)
+            # Mission AI 서버 실행
             nohup uvicorn mission:app --host 0.0.0.0 --port 6000 > mission_ai.log 2>&1 &
             echo $! > mission_ai.pid
             

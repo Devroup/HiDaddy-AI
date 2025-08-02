@@ -38,6 +38,14 @@ class MissionResponse(BaseModel):
     description: str
     keywords: list[str]
 
+@app.get("/health")
+async def health_check():
+    """상태 확인 엔드포인트"""
+    return {
+        "status": "healthy",
+        "openai_key_configured": bool(OPENAI_API_KEY)
+    }
+
 @app.post("/generate-mission", response_model=MissionResponse)
 async def generate_mission(req: MissionRequest):
     if not OPENAI_API_KEY:
@@ -122,3 +130,8 @@ async def generate_mission(req: MissionRequest):
     except httpx.RequestError as e:
         logger.error(f"HTTP 요청 중 오류: {e}")
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 6000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
