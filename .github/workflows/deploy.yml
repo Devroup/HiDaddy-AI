@@ -33,7 +33,7 @@ jobs:
           script: |
             echo "${{ secrets.ENV_FILE }}" > /home/ubuntu/mission-ai/.env
 
-      - name: Create startup script
+      - name: Install dependencies & restart service
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -41,29 +41,16 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           port: 22
           script: |
-            # 시작 스크립트 생성
-            cat > /home/ubuntu/start_mission_ai.sh << 'EOF'
-            #!/bin/bash
             cd /home/ubuntu/mission-ai
-            
             python3 -m venv venv 2>/dev/null || true
             source venv/bin/activate
             pip install -r requirements.txt
             
-            # 기존 Mission AI 프로세스 종료
-            pkill -f "uvicorn.*mission:app" || true
-            sleep 3
-            
-            # Mission AI 서버 실행
-            nohup uvicorn mission:app --host 0.0.0.0 --port 6000 > mission_ai.log 2>&1 &
-            echo $! > mission_ai.pid
-            
-            echo "미션 AI 서버가 시작되었습니다. PID: $(cat mission_ai.pid)"
-            EOF
-            
-            chmod +x /home/ubuntu/start_mission_ai.sh
+            # 서비스 재시작
+            sudo systemctl restart mission
+            sudo systemctl status mission --no-pager
 
-      - name: Start Mission AI
+      - name: Health Check
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -71,18 +58,15 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           port: 22
           script: |
-            nohup /home/ubuntu/start_mission_ai.sh > /tmp/deploy_mission_ai.log 2>&1 &
-            sleep 10
-            
-            if [ -f /home/ubuntu/mission-ai/mission_ai.pid ]; then
-                PID=$(cat /home/ubuntu/mission-ai/mission_ai.pid)
-                if ps -p $PID > /dev/null; then
-                    echo "✅ Mission AI 서버 시작 성공! PID: $PID"
-                else
-                    echo "❌ Mission AI 서버 시작 실패"
-                    cat /home/ubuntu/mission-ai/mission_ai.log 2>/dev/null || echo "로그 없음"
-                fi
-            else
-                echo "❌ PID 파일이 생성되지 않았습니다"
-                cat /tmp/deploy_mission_ai.log 2>/dev/null || echo "배포 로그 없음"
-            fi
+            echo "Mission AI 서버 헬스체크 중..."
+            for i in {1..10}; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:6000/health || true)
+              if [ "$STATUS" == "200" ]; then
+                echo "Mission AI 서버 헬스체크 성공!"
+                exit 0
+              fi
+              echo "서버 응답 대기 중... ($i/10)"
+              sleep 3
+            done
+            echo "Mission AI 헬스체크 실패"
+            exit 1
