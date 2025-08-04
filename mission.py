@@ -131,6 +131,111 @@ async def generate_mission(req: MissionRequest):
         logger.error(f"HTTP 요청 중 오류: {e}")
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
 
+# === 요청 DTO ===
+class MissionAnalysisAiRequest(BaseModel):
+    title: str
+    description: str
+    keyword1: str
+    keyword2: str
+    keyword3: str
+    imageUrl: str
+
+# === 응답 DTO ===
+class MissionAnalysisAiResponse(BaseModel):
+    keyword1: bool
+    keyword2: bool
+    keyword3: bool
+    result: str      # PASS 또는 FAIL
+    reason: str      # 판정 사유
+
+
+@app.post("/analyze-photo", response_model=MissionAnalysisAiResponse)
+async def analyze_photo(request: MissionAnalysisAiRequest):
+    """
+    GPT를 이용한 미션 사진 판독 API
+    """
+    try:
+        # GPT 프롬프트 생성
+        prompt = f"""
+        다음은 미션 사진 판독 요청입니다:
+        - 미션 제목: {request.title}
+        - 미션 설명: {request.description}
+        - 키워드: {request.keyword1}, {request.keyword2}, {request.keyword3}
+
+        아래 이미지를 보고 각 키워드가 사진과 부합하는지 판단하세요.
+
+        출력은 반드시 아래 JSON 형식으로만 하세요:
+        {{
+            "keyword1": true/false,
+            "keyword2": true/false,
+            "keyword3": true/false,
+            "result": "PASS" 또는 "FAIL",
+            "reason": "한 문장으로 간단히 판정 사유 설명"
+        }}
+
+        PASS 기준: 키워드 중 2개 이상이 true일 경우 PASS, 아니면 FAIL.
+        """
+
+        # OpenAI API 요청 데이터
+        headers = {
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "gpt-4o-mini",  # 이미지 입력 지원 모델
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": request.imageUrl}}
+                    ]
+                }
+            ],
+            "temperature": 0
+        }
+
+        # OpenAI API 호출
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                json=payload,
+                headers=headers
+            )
+
+        if response.status_code != 200:
+            logger.error(f"OpenAI API 오류: {response.status_code} {response.text}")
+            raise HTTPException(status_code=500, detail="OpenAI API 호출 실패")
+
+        result = response.json()
+        content = result["choices"][0]["message"]["content"].strip()
+        logger.info(f"GPT 응답 원본: {content}")
+
+        # GPT 응답 JSON 파싱
+        try:
+            # GPT 응답에서 ```json 또는 ``` 제거
+            if content.startswith("```"):
+                content = content[content.find("{"):content.rfind("}")+1]
+
+            mission_data = json.loads(content)
+        except json.JSONDecodeError:
+            logger.error(f"GPT 응답이 JSON 형식이 아님: {content}")
+            raise HTTPException(status_code=500, detail="GPT 응답 파싱 실패")
+
+        # 응답 DTO 변환
+        return MissionAnalysisAiResponse(
+            keyword1=mission_data.get("keyword1", False),
+            keyword2=mission_data.get("keyword2", False),
+            keyword3=mission_data.get("keyword3", False),
+            result=mission_data.get("result", "FAIL"),
+            reason=mission_data.get("reason", "판정 사유 없음")
+        )
+
+    except Exception as e:
+        logger.error(f"미션 사진 판독 중 오류 발생: {e}")
+        raise HTTPException(status_code=500, detail="AI 판독 중 오류 발생")
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 6000))
