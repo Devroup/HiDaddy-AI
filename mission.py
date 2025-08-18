@@ -75,6 +75,8 @@ async def generate_mission(req: MissionRequest):
         - JSON 형식으로만 응답합니다. 추가 설명이나 서문은 포함하지 않습니다.
         - JSON 키: title, description, keywords
             - title: 아빠를 대상으로 한 미션 제목 (한 줄)
+                - 예를 들어, "~~을 하기"의 형식으로 구성합니다.
+                - 문장 마지막엔 "." 온점을 반드시 빼줍니다.
             - description: 미션 설명 (한 문장)
             - keywords: 행동 1개, 사물/장소 1개, 표정/제스처 1개 (리스트)
         - 세 키워드는 하나의 사진 안에서 자연스럽게 표현될 수 있도록 연관성 있게 구성합니다.
@@ -117,7 +119,7 @@ async def generate_mission(req: MissionRequest):
             try:
                 mission_data = json.loads(content)
                 print(mission_data);
-            except josn.JSONDecodeError:
+            except json.JSONDecodeError:
                 logger.error(f"GPT 응답이 JSON 형식이 아님: {content}")
                 raise HTTPException(status_code=500, detail="GPT 응답 파싱 실패")
             
