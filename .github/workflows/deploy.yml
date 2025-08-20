@@ -1,4 +1,4 @@
-name: Deploy Mission AI
+name: Deploy HiDaddy Services
 
 on:
   push:
@@ -21,9 +21,9 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           port: 22
           source: "./"
-          target: "/home/ubuntu/mission-ai"
+          target: "/home/ubuntu/hidaddy-ai"
       
-      - name: Upload .env file
+      - name: Upload mission .env file
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -31,9 +31,9 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           port: 22
           script: |
-            echo "${{ secrets.ENV_FILE }}" > /home/ubuntu/mission-ai/.env
+            echo "${{ secrets.MISSION_ENV_FILE }}" > /home/ubuntu/hidaddy-ai/mission/.env
 
-      - name: Install dependencies & restart service
+      - name: Upload chatbot .env file
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -41,16 +41,41 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           port: 22
           script: |
-            cd /home/ubuntu/mission-ai
+            echo "${{ secrets.CHATBOT_ENV_FILE }}" > /home/ubuntu/hidaddy-ai/chatbot/.env
+
+      - name: Install dependencies & restart services
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          port: 22
+          script: |
+            cd /home/ubuntu/hidaddy-ai
+            
+            # Mission 서비스 의존성 설치
+            cd mission
             python3 -m venv venv 2>/dev/null || true
             source venv/bin/activate
-            pip install -r requirements.txt
+            pip install -r ../requirements.txt
+            cd ..
+            
+            # Chatbot 서비스 의존성 설치
+            cd chatbot
+            python3 -m venv venv 2>/dev/null || true
+            source venv/bin/activate
+            pip install -r ../requirements.txt
+            cd ..
             
             # 서비스 재시작
             sudo systemctl restart mission
+            sudo systemctl restart chatbot
+            
+            # 서비스 상태 확인
             sudo systemctl status mission --no-pager
+            sudo systemctl status chatbot --no-pager
 
-      - name: Health Check
+      - name: Health Check - Mission Service
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -58,15 +83,53 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           port: 22
           script: |
-            echo "Mission AI 서버 헬스체크 중..."
+            echo "Mission 서버 헬스체크 중..."
             for i in {1..10}; do
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:6000/health || true)
               if [ "$STATUS" == "200" ]; then
-                echo "Mission AI 서버 헬스체크 성공!"
-                exit 0
+                echo "Mission 서버 헬스체크 성공!"
+                break
               fi
-              echo "서버 응답 대기 중... ($i/10)"
+              echo "Mission 서버 응답 대기 중... ($i/10)"
               sleep 3
             done
-            echo "Mission AI 헬스체크 실패"
-            exit 1
+            if [ "$STATUS" != "200" ]; then
+              echo "Mission 헬스체크 실패"
+              exit 1
+            fi
+
+      - name: Health Check - Chatbot Service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          port: 22
+          script: |
+            echo "Chatbot 서버 헬스체크 중..."
+            for i in {1..10}; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health || true)
+              if [ "$STATUS" == "200" ]; then
+                echo "Chatbot 서버 헬스체크 성공!"
+                break
+              fi
+              echo "Chatbot 서버 응답 대기 중... ($i/10)"
+              sleep 3
+            done
+            if [ "$STATUS" != "200" ]; then
+              echo "Chatbot 헬스체크 실패"
+              exit 1
+            fi
+
+      - name: Final Status Report
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          port: 22
+          script: |
+            echo "========== 배포 완료 =========="
+            echo "Mission Service (Port 6000): $(curl -s http://localhost:6000/health | jq -r '.status' 2>/dev/null || echo 'Unknown')"
+            echo "Chatbot Service (Port 8000): $(curl -s http://localhost:8000/health | jq -r '.status' 2>/dev/null || echo 'Unknown')"
+            echo "=============================="

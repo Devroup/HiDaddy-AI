@@ -1,6 +1,12 @@
 fastapi
 uvicorn[standard]
 pydantic
-openai
+openai>=1.30.0
 python-dotenv
 httpx
+websockets
+
+# RAG 관련 패키지 (chatbot용)
+pinecone>=4.0.0
+pypdf>=3.9.0
+beautifulsoup4>=4.12.2
