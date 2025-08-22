@@ -16,8 +16,8 @@
 
 | 이름 | 역할 |
 |------|------|
-| [권용현](https://github.com/yyoonngg) |  |
-| [문채영](https://github.com/mcy0325) |  |
+| [권용현](https://github.com/yyoonngg) | 감정일기 분석, AI 맞춤 미션 추천, 인증·보상 판별 |
+| [문채영](https://github.com/mcy0325) | 챗봇 서비스 |
 
 
 
