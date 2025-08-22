@@ -24,5 +24,3 @@
 ## 🏷️ 태그
 `#AI` `#Chatbot` `#MissionRecommendation` `#하이대디` `#임신동행`
 
-## 📂 프로젝트 구조
-
