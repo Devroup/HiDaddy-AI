@@ -36,7 +36,7 @@ jobs:
             chmod 600 /home/ubuntu/hidaddy-ai/chatbot/.env
             chown ubuntu:ubuntu /home/ubuntu/hidaddy-ai/chatbot/.env
 
-      - name: Install dependencies & restart chatbot
+      - name: Upload mission .env file
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -45,25 +45,61 @@ jobs:
           port: 22
           script: |
             set -euo pipefail
-            cd /home/ubuntu/hidaddy-ai/chatbot
+            echo "${{ secrets.MISSION_ENV_FILE }}" > /home/ubuntu/hidaddy-ai/mission/.env
+            chmod 600 /home/ubuntu/hidaddy-ai/mission/.env
+            chown ubuntu:ubuntu /home/ubuntu/hidaddy-ai/mission/.env
 
-            # Python venv 준비
+      - name: Install dependencies & restart services
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          port: 22
+          script: |
+            set -euo pipefail
+            cd /home/ubuntu/hidaddy-ai
+            
+            # Mission 서비스 의존성 설치
+            cd mission
             python3 -m venv venv 2>/dev/null || true
             source venv/bin/activate
-
-            # requirements 설치 (chatbot/requirements.txt 우선, 없으면 상위 폴더)
-            if [ -f requirements.txt ]; then
-              pip install -U pip
-              pip install -r requirements.txt
-            elif [ -f ../requirements.txt ]; then
-              pip install -U pip
-              pip install -r ../requirements.txt
-            fi
-
+            pip install -r ../requirements.txt
+            cd ..
+            
+            # Chatbot 서비스 의존성 설치
+            cd chatbot
+            python3 -m venv venv 2>/dev/null || true
+            source venv/bin/activate
+            pip install -r ../requirements.txt
+            cd ..
+            
             # 서비스 재시작
-            sudo systemctl daemon-reload
+            sudo systemctl restart mission
             sudo systemctl restart chatbot
-            sudo systemctl status chatbot --no-pager || true
+            
+            # 서비스 상태 확인
+            sudo systemctl status mission --no-pager
+            sudo systemctl status chatbot --no-pager
+
+      - name: Health Check - Mission
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          port: 22
+          script: |
+            echo "Mission 서버 헬스체크 중..."
+            for i in {1..10}; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:6000/health || true)
+              if [ "$STATUS" == "200" ]; then
+                echo "Mission 서버 헬스체크 성공!"
+                break
+              fi
+              echo "Mission 서버 응답 대기 중... ($i/10)"
+              sleep 3
+            done
 
       - name: Health Check - Chatbot
         uses: appleboy/ssh-action@v1.0.3
