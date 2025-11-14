@@ -21,7 +21,7 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           port: 22
           source: "./"
-          target: "/home/ubuntu/hidaddy-ai"
+          target: "/root/hidaddy-ai"
 
       - name: Upload chatbot .env file
         uses: appleboy/ssh-action@v1.0.3
@@ -32,9 +32,9 @@ jobs:
           port: 22
           script: |
             set -euo pipefail
-            echo "${{ secrets.CHATBOT_ENV_FILE }}" > /home/ubuntu/hidaddy-ai/chatbot/.env
-            chmod 600 /home/ubuntu/hidaddy-ai/chatbot/.env
-            chown ubuntu:ubuntu /home/ubuntu/hidaddy-ai/chatbot/.env
+            echo "${{ secrets.CHATBOT_ENV_FILE }}" > /root/hidaddy-ai/chatbot/.env
+            chmod 600 /root/hidaddy-ai/chatbot/.env
+            chown root:root /root/hidaddy-ai/chatbot/.env
 
       - name: Upload mission .env file
         uses: appleboy/ssh-action@v1.0.3
@@ -45,9 +45,9 @@ jobs:
           port: 22
           script: |
             set -euo pipefail
-            echo "${{ secrets.MISSION_ENV_FILE }}" > /home/ubuntu/hidaddy-ai/mission/.env
-            chmod 600 /home/ubuntu/hidaddy-ai/mission/.env
-            chown ubuntu:ubuntu /home/ubuntu/hidaddy-ai/mission/.env
+            echo "${{ secrets.MISSION_ENV_FILE }}" > /root/hidaddy-ai/mission/.env
+            chmod 600 /root/hidaddy-ai/mission/.env
+            chown root:root /root/hidaddy-ai/mission/.env
 
       - name: Install dependencies & restart services
         uses: appleboy/ssh-action@v1.0.3
@@ -58,7 +58,7 @@ jobs:
           port: 22
           script: |
             set -euo pipefail
-            cd /home/ubuntu/hidaddy-ai
+            cd /root/hidaddy-ai
             
             # Mission 서비스 의존성 설치
             cd mission
