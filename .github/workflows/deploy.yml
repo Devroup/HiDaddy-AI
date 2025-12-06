@@ -69,8 +69,9 @@ jobs:
 
             # Mission 서비스 의존성 설치
             cd mission
-            if [ ! -d "venv" ]; then
+            if [ ! -f "venv/bin/activate" ]; then
               echo "Mission venv 생성 중..."
+              rm -rf venv
               python3 -m venv venv
             fi
             source venv/bin/activate
@@ -80,8 +81,9 @@ jobs:
 
             # Chatbot 서비스 의존성 설치
             cd chatbot
-            if [ ! -d "venv" ]; then
+            if [ ! -f "venv/bin/activate" ]; then
               echo "Chatbot venv 생성 중..."
+              rm -rf venv
               python3 -m venv venv
             fi
             source venv/bin/activate
